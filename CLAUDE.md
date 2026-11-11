@@ -4,7 +4,8 @@
 
 The one delivery check for every Mikapp site (mikapp.nl, client sites, Atelier Schmitz): `site-check build` reads the
 built HTML, `site-check live` asks the real host. Each site installs it as a dev dependency from GitHub and pins a tag.
-`README.md` lists every check; keep it in step with the code.
+`README.md` lists every check; keep it in step with the code. `HANDOVER.md` is the list of what no check can see;
+when a check takes over a line from it, remove that line.
 
 Mikapp is the one-person web studio of Mika Schmitz, built next to a full-time job. Keep every change small, finished
 and easy to review.
