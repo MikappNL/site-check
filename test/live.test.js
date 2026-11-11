@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { parseConfig } from "../src/config.js";
-import { hostVariants, checkLive } from "../src/live.js";
+import { checkLive, hostVariants, otherForm } from "../src/live.js";
 
 const SITE = "https://example.nl";
 
@@ -32,10 +32,15 @@ function pageAt(address) {
     return { body: `<html lang="nl"><head><title>Pagina ${address}</title><link rel="canonical" href="${SITE}${address}"></head><body><h1 id="contact">Hoi</h1></body></html>` };
 }
 
-/** A host without problems. */
+/**
+ * A host without problems.
+ * @type {Record<string, Route>}
+ */
 const goodRoutes = {
     [`${SITE}/`]: pageAt("/"),
     [`${SITE}/over`]: pageAt("/over"),
+    // Hosts serve a folder's page with and without the slash; the canonical link says which address counts.
+    [`${SITE}/over/`]: pageAt("/over"),
     [`${SITE}/robots.txt`]: { type: "text/plain", body: `User-agent: *\nAllow: /\nSitemap: ${SITE}/sitemap.xml\n` },
     [`${SITE}/sitemap.xml`]: { type: "application/xml", body: `<urlset><url><loc>${SITE}/</loc></url><url><loc>${SITE}/over</loc></url></urlset>` },
     [`${SITE}/contact`]: { status: 301, location: "/#contact" },
@@ -101,6 +106,33 @@ describe("finds", () => {
     });
 });
 
+describe("the other form of a page address, with or without the slash", () => {
+    test("may redirect to the page", async () => {
+        const routes = { ...goodRoutes, [`${SITE}/over/`]: { status: 301, location: `${SITE}/over` } };
+        const { report } = await checkLive(config, { fetch: host(routes) });
+        assert.deepEqual(lines(report), []);
+    });
+
+    test("may not show an empty page, as a broken rewrite on Render did", async () => {
+        const routes = { ...goodRoutes, [`${SITE}/over/`]: { body: "" } };
+        const { report } = await checkLive(config, { fetch: host(routes) });
+        assert.deepEqual(lines(report), ["error /over/ answers 200 with an empty page; it should show /over or redirect there"]);
+    });
+
+    test("may not show another page", async () => {
+        const routes = { ...goodRoutes, [`${SITE}/over/`]: pageAt("/") };
+        const { report } = await checkLive(config, { fetch: host(routes) });
+        assert.deepEqual(lines(report), ["error /over/ shows the page of https://example.nl/, instead of /over"]);
+    });
+
+    test("gets a warning when it is not found", async () => {
+        const routes = { ...goodRoutes };
+        delete routes[`${SITE}/over/`];
+        const { report } = await checkLive(config, { fetch: host(routes) });
+        assert.deepEqual(lines(report), ["warning /over/ answers 404; people who type it this way land on the error page"]);
+    });
+});
+
 test("a www address that does not exist is only a warning", async () => {
     const routes = { ...goodRoutes, "https://www.example.nl/": new Error("getaddrinfo ENOTFOUND www.example.nl") };
     const { report } = await checkLive(config, { fetch: host(routes) });
@@ -110,6 +142,13 @@ test("a www address that does not exist is only a warning", async () => {
 test("stops at once when the site cannot be reached", async () => {
     const { report } = await checkLive(config, { fetch: host({ [`${SITE}/`]: new Error("certificate has expired") }) });
     assert.deepEqual(lines(report), ["error / could not be reached: certificate has expired"]);
+});
+
+test("tries a page address with and without the slash, but not the home page or a file", () => {
+    assert.equal(otherForm("/over"), "/over/");
+    assert.equal(otherForm("/werk/oud/"), "/werk/oud");
+    assert.equal(otherForm("/"), undefined);
+    assert.equal(otherForm("/voorwaarden.pdf"), undefined);
 });
 
 test("tries the address with and without www, and without https", () => {

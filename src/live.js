@@ -110,6 +110,32 @@ export async function checkLive(config, { fetch = globalThis.fetch } = {}) {
         if (addresses.length > 1) report.error(addresses.join(", "), `share the title "${title}"; every page needs its own`);
     }
 
+    // People type and share addresses with and without the slash. A host may show the page or redirect to it, but a
+    // rewrite rule can make one of the two forms show an empty page or the home page instead.
+    const otherForms = pages.flatMap((page) => {
+        const other = otherForm(new URL(page).pathname);
+        return other ? [{ page: new URL(page).pathname, other }] : [];
+    });
+    await forEachLimited(otherForms, PARALLEL_REQUESTS, ({ page, other }) =>
+        attempt(other, async () => {
+            const answer = await get(other);
+            const pageUrl = new URL(page, config.site).href;
+            if (answer.status === 301 || answer.status === 308) {
+                if (answer.location !== pageUrl) report.error(other, `redirects to ${answer.location}, expected ${page}`);
+            } else if (answer.status === 404) {
+                report.warning(other, "answers 404; people who type it this way land on the error page");
+            } else if (answer.status !== 200) {
+                report.error(other, `answers ${describe(answer)}; it should show ${page} or redirect there`);
+            } else {
+                const canonical = linksWithRel(readDocument(answer.text), "canonical")[0]?.attributes.get("href");
+                if (!answer.text.trim()) report.error(other, `answers 200 with an empty page; it should show ${page} or redirect there`);
+                else if (canonical && URL.parse(canonical)?.href !== pageUrl) {
+                    report.error(other, `shows the page of ${canonical}, instead of ${page}`);
+                }
+            }
+        }),
+    );
+
     const unknown = `/site-check-${Date.now().toString(36)}`;
     await attempt(unknown, async () => {
         const answer = await get(unknown);
@@ -196,6 +222,15 @@ export async function checkLive(config, { fetch = globalThis.fetch } = {}) {
         const url = new URL(address, config.site);
         return url.origin === config.site ? url.pathname : url.href;
     }
+}
+
+/**
+ * The same page address with the slash at the end added or taken away; none for the home page or a file.
+ * @param {string} pathname
+ */
+export function otherForm(pathname) {
+    if (pathname === "/" || /\.[a-z0-9]+$/i.test(pathname)) return undefined;
+    return pathname.endsWith("/") ? pathname.slice(0, -1) : `${pathname}/`;
 }
 
 /** @param {Answer} answer */
