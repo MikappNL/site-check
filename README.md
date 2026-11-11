@@ -13,7 +13,7 @@ It has no runtime dependencies and needs Node 22.12 or newer.
 ## Add it to a site
 
 ```bash
-npm install --save-dev github:MikappNL/site-check#v0.1.0
+npm install --save-dev github:MikappNL/site-check#v0.2.0
 ```
 
 Put a `site-check.config.json` next to `package.json`:
@@ -83,12 +83,19 @@ as the pages they will be.
 - The home page answers 200, and `robots.txt` answers 200 as text.
 - Every page in the sitemap answers 200 without a redirect, with a canonical link to exactly that address and a title
   of its own.
+- The same address with the slash added or taken away (`/over/` for `/over`) shows that page or redirects to it. A 404
+  there is a warning. A rewrite rule on Atelier Schmitz showed an empty page there until November 2026.
 - An address that does not exist answers 404. A catch-all rewrite to `/index.html` answers 200 and shows the home page
   for every wrong link, which cost mikapp.nl its pages in Google until November 2026.
 - Every `redirects` entry answers 301 or 308 to its target, and an id in the target (`/#contact`) exists. Every `gone`
   address answers 404 or 410.
 - The address without https, and with or without www, sends people on to `site`. A name that does not exist is a
   warning.
+
+## What no check can see
+
+[`HANDOVER.md`](HANDOVER.md) lists what to do and look at by hand before and after a site goes online: the domain,
+the old site's addresses, the forms, Search Console and the client's access.
 
 ## What stays in each site
 
