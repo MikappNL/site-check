@@ -1,0 +1,25 @@
+{
+  "name": "site-check",
+  "version": "0.1.0",
+  "description": "One delivery check for every Mikapp site: the built HTML before it goes online, and what the live host answers.",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "site-check": "bin/site-check.js"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~7.0.2"
+  }
+}
