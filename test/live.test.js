@@ -7,7 +7,7 @@ import { checkLive, hostVariants, otherForm } from "../src/live.js";
 const SITE = "https://example.nl";
 
 /**
- * @typedef {{ status?: number, location?: string, type?: string, body?: string }} Route
+ * @typedef {{ status?: number, location?: string, type?: string, robotsTag?: string, body?: string }} Route
  */
 
 /**
@@ -23,6 +23,7 @@ function host(routes, fallback = () => undefined) {
         if (route instanceof Error) throw new TypeError("fetch failed", { cause: route });
         const headers = new Headers({ "content-type": route.type ?? "text/html; charset=utf-8" });
         if (route.location) headers.set("location", route.location);
+        if (route.robotsTag) headers.set("x-robots-tag", route.robotsTag);
         return new Response(route.body ?? "", { status: route.status ?? 200, headers });
     };
 }
@@ -91,6 +92,25 @@ describe("finds", () => {
         const { report } = await checkLive(config, { fetch: host(routes) });
         assert.match(lines(report).join("\n"), /error \/over answers 301 to https:\/\/example\.nl\/over\/; the sitemap should only list addresses that answer 200/);
         assert.match(lines(report).join("\n"), /error \/ has canonical https:\/\/example\.nl\/home, while the sitemap lists https:\/\/example\.nl\//);
+    });
+
+    test("a site that still has noindex on every page, as a preview has", async () => {
+        const noindex = (/** @type {string} */ address) => ({
+            body: pageAt(address).body.replace("</head>", '<meta name="robots" content="noindex, follow"></head>'),
+        });
+        const routes = { ...goodRoutes, [`${SITE}/`]: noindex("/"), [`${SITE}/over`]: noindex("/over") };
+        const { report } = await checkLive(config, { fetch: host(routes) });
+        assert.deepEqual(lines(report), [
+            "error every page has noindex (in a robots meta tag), so search engines will not show this site",
+        ]);
+    });
+
+    test("a page the host sends with noindex in the X-Robots-Tag header", async () => {
+        const routes = { ...goodRoutes, [`${SITE}/over`]: { ...pageAt("/over"), robotsTag: "noindex" } };
+        const { report } = await checkLive(config, { fetch: host(routes) });
+        assert.deepEqual(lines(report), [
+            "error /over has noindex (in the X-Robots-Tag header), so search engines leave it out, although the sitemap lists it",
+        ]);
     });
 
     test("a robots.txt the host sends as a web page", async () => {

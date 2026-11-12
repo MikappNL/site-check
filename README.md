@@ -5,7 +5,7 @@ built, so it works the same for Vite, React Router and Astro sites.
 
 - `site-check build` checks the built site before it goes online. Run it after every build; it fails the build when a
   page is not fit to go online.
-- `site-check live` checks what the host really answers. Run it after the first deploy and after every change in the
+- `site-check live` checks what the host really answers. Run it when the site goes online and after every change in the
   host's dashboard (redirects, rewrites, domains): a build can be right while the host is wrong.
 
 It has no runtime dependencies and needs Node 22.12 or newer.
@@ -13,7 +13,7 @@ It has no runtime dependencies and needs Node 22.12 or newer.
 ## Add it to a site
 
 ```bash
-npm install --save-dev github:MikappNL/site-check#v0.2.0
+npm install --save-dev github:MikappNL/site-check#v0.3.0
 ```
 
 Put a `site-check.config.json` next to `package.json`:
@@ -83,6 +83,9 @@ as the pages they will be.
 - The home page answers 200, and `robots.txt` answers 200 as text.
 - Every page in the sitemap answers 200 without a redirect, with a canonical link to exactly that address and a title
   of its own.
+- No page in the sitemap has noindex, in a robots meta tag or an X-Robots-Tag header. The build only warns about it,
+  because a preview has it on purpose; on the live site it keeps the pages out of Google, so a preview setting that was
+  left on at launch is an error here.
 - The same address with the slash added or taken away (`/over/` for `/over`) shows that page or redirects to it. A 404
   there is a warning. A rewrite rule on Atelier Schmitz showed an empty page there until November 2026.
 - An address that does not exist answers 404. A catch-all rewrite to `/index.html` answers 200 and shows the home page

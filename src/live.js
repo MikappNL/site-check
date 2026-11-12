@@ -1,5 +1,5 @@
 // @ts-check
-import { linksWithRel, readDocument } from "./html.js";
+import { isNoindex, linksWithRel, readDocument } from "./html.js";
 import { Report } from "./report.js";
 import { sitemapsIn } from "./robots.js";
 import { readSitemap } from "./sitemap.js";
@@ -14,6 +14,7 @@ import { readSitemap } from "./sitemap.js";
  * @property {number} status
  * @property {string | null} location The redirect target, made absolute.
  * @property {string} contentType
+ * @property {string} robotsTag The X-Robots-Tag header, which a host can add to any page outside the HTML.
  * @property {string} text
  */
 
@@ -45,6 +46,7 @@ export async function checkLive(config, { fetch = globalThis.fetch } = {}) {
                 status: response.status,
                 location: response.headers.has("location") ? new URL(response.headers.get("location") ?? "", url).href : null,
                 contentType: response.headers.get("content-type") ?? "",
+                robotsTag: response.headers.get("x-robots-tag") ?? "",
                 text: await response.text(),
             }));
             answers.set(url, answer);
@@ -90,6 +92,9 @@ export async function checkLive(config, { fetch = globalThis.fetch } = {}) {
     const pages = await listedPages(sitemaps.length > 0 ? sitemaps : [`${config.site}/sitemap.xml`]);
     /** @type {Map<string, string[]>} */
     const byTitle = new Map();
+    let shown = 0;
+    /** @type {{ address: string, source: string }[]} */
+    const hidden = [];
     await forEachLimited(pages, PARALLEL_REQUESTS, (page) =>
         attempt(pathOf(page), async () => {
             const answer = await get(page);
@@ -97,7 +102,10 @@ export async function checkLive(config, { fetch = globalThis.fetch } = {}) {
                 report.error(pathOf(page), `answers ${describe(answer)}; the sitemap should only list addresses that answer 200`);
                 return;
             }
+            shown++;
             const document = readDocument(answer.text);
+            const source = noindexSource(document, answer);
+            if (source) hidden.push({ address: pathOf(page), source });
             const canonical = linksWithRel(document, "canonical")[0]?.attributes.get("href");
             if (!canonical || URL.parse(canonical)?.href !== page) {
                 report.error(pathOf(page), `has canonical ${canonical ?? "(none)"}, while the sitemap lists ${page}`);
@@ -108,6 +116,17 @@ export async function checkLive(config, { fetch = globalThis.fetch } = {}) {
     );
     for (const [title, addresses] of byTitle) {
         if (addresses.length > 1) report.error(addresses.join(", "), `share the title "${title}"; every page needs its own`);
+    }
+
+    // The build only warns about noindex, because a preview has it on purpose. On the live site it keeps pages out of
+    // search results, and noindex on every page is a preview setting that was not switched off on launch day.
+    if (hidden.length > 1 && hidden.length === shown) {
+        const sources = [...new Set(hidden.map((page) => page.source))].join(" and ");
+        report.error("every page", `has noindex (${sources}), so search engines will not show this site`);
+    } else {
+        for (const { address, source } of hidden) {
+            report.error(address, `has noindex (${source}), so search engines leave it out, although the sitemap lists it`);
+        }
     }
 
     // People type and share addresses with and without the slash. A host may show the page or redirect to it, but a
@@ -231,6 +250,18 @@ export async function checkLive(config, { fetch = globalThis.fetch } = {}) {
 export function otherForm(pathname) {
     if (pathname === "/" || /\.[a-z0-9]+$/i.test(pathname)) return undefined;
     return pathname.endsWith("/") ? pathname.slice(0, -1) : `${pathname}/`;
+}
+
+/**
+ * Where a page tells search engines to leave it out, if it does. A host adds the header in its dashboard, outside the
+ * build, so the message says which of the two to look at.
+ * @param {Document} document
+ * @param {Answer} answer
+ */
+function noindexSource(document, answer) {
+    if (answer.robotsTag.toLowerCase().includes("noindex")) return "in the X-Robots-Tag header";
+    if (isNoindex(document)) return "in a robots meta tag";
+    return undefined;
 }
 
 /** @param {Answer} answer */

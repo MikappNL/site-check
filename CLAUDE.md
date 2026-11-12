@@ -23,7 +23,8 @@ and easy to review.
   what is wrong and, where it helps, why it matters.
 - **Tests first** with `node:test`: a new check gets a test with a small example site (`test/support/site.js`) or a fake
   host (`test/live.test.js`), and the example site in `goodSite()` keeps passing every check.
-- **Releases**: a change that sites should get is a new tag (`v0.2.0`); sites update their pin on purpose.
+- **Releases**: a change that sites should get is a new tag (`v0.3.0`); sites update their pin on purpose. After a
+  new tag, also update the pin in `mikapp-starter` in its own pull request, so every new site starts with it.
 - Code, comments, commits and docs in English; comments explain why. Pull request titles and descriptions in Dutch.
 - Work on a short-lived branch and open a pull request. Never push to `main`.
 

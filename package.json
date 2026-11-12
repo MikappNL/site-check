@@ -1,6 +1,6 @@
 {
   "name": "site-check",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "One delivery check for every Mikapp site: the built HTML before it goes online, and what the live host answers.",
   "private": true,
   "type": "module",
